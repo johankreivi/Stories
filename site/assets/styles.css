@@ -694,12 +694,15 @@ body.has-faux-fullscreen {
 .player-shell.is-faux-fullscreen .player-layout {
   height: 100%;
   grid-template-columns: 1fr;
+  overflow: hidden;
 }
 
 .player-shell:fullscreen .player-primary,
 .player-shell.is-faux-fullscreen .player-primary {
   height: 100%;
-  grid-template-rows: 1fr auto;
+  min-height: 0;
+  grid-template-rows: minmax(0, 1fr) auto;
+  overflow: hidden;
 }
 
 .player-shell:fullscreen .chapter-rail,
@@ -709,12 +712,19 @@ body.has-faux-fullscreen {
 
 .player-shell:fullscreen .visual-stage,
 .player-shell.is-faux-fullscreen .visual-stage {
+  height: 100%;
   min-height: 0;
 }
 
 .player-shell:fullscreen .chapter-image,
 .player-shell.is-faux-fullscreen .chapter-image {
+  max-height: 100%;
   min-height: 0;
+}
+
+.player-shell:fullscreen .caption-region,
+.player-shell.is-faux-fullscreen .caption-region {
+  bottom: clamp(48px, 9vh, 112px);
 }
 
 .player-shell:fullscreen .control-panel,
@@ -835,6 +845,44 @@ body.has-faux-fullscreen {
   .player-shell:fullscreen .timeline,
   .player-shell.is-faux-fullscreen .timeline {
     margin-top: 0;
+  }
+}
+
+@media (max-height: 620px) {
+  .player-shell:fullscreen .story-heading,
+  .player-shell.is-faux-fullscreen .story-heading {
+    display: none;
+  }
+
+  .player-shell:fullscreen .control-panel,
+  .player-shell.is-faux-fullscreen .control-panel {
+    padding: 10px 16px 12px;
+  }
+
+  .player-shell:fullscreen .timeline,
+  .player-shell.is-faux-fullscreen .timeline {
+    margin-top: 0;
+  }
+
+  .player-shell:fullscreen .time-row,
+  .player-shell.is-faux-fullscreen .time-row {
+    margin-top: 4px;
+  }
+
+  .player-shell:fullscreen .transport,
+  .player-shell.is-faux-fullscreen .transport {
+    margin-top: 8px;
+  }
+
+  .player-shell:fullscreen .play-button,
+  .player-shell.is-faux-fullscreen .play-button {
+    width: 52px;
+    height: 52px;
+  }
+
+  .player-shell:fullscreen .caption-region,
+  .player-shell.is-faux-fullscreen .caption-region {
+    bottom: clamp(36px, 9vh, 56px);
   }
 }
 
