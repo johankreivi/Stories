@@ -1,0 +1,5 @@
+dist/
+node_modules/
+Stories/**/.tts-verktyg/node_modules/
+Stories/**/*.partial-*
+Stories/**/*.mp3.json

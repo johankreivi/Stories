@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="sv">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#0d2448">
+    <meta
+      name="description"
+      content="Sagostund – lyssna på bildsagor med kapitel och synkroniserad text."
+    >
+    <title>Sagostund</title>
+    <link rel="stylesheet" href="./assets/styles.css">
+  </head>
+  <body>
+    <header class="app-header">
+      <a class="brand" href="./" aria-label="Sagostund, startsida">
+        <span class="brand-mark" aria-hidden="true">S</span>
+        <span>
+          <strong>Sagostund</strong>
+          <small>Bildsagor att lyssna på</small>
+        </span>
+      </a>
+
+      <label class="story-picker">
+        <span>Välj saga</span>
+        <select id="storySelect" aria-label="Välj saga"></select>
+      </label>
+    </header>
+
+    <main class="app-main">
+      <section
+        class="player-shell"
+        id="playerShell"
+        aria-label="Ljudboksspelare"
+      >
+        <div class="player-layout">
+          <div class="player-primary">
+            <div class="visual-stage" id="visualStage">
+              <img
+                id="chapterImage"
+                class="chapter-image"
+                alt=""
+                decoding="async"
+              >
+
+              <div class="visual-scrim" aria-hidden="true"></div>
+
+              <div class="visual-topline">
+                <span class="chapter-chip" id="chapterChip">Förbereder saga</span>
+                <button
+                  class="icon-button fullscreen-button"
+                  id="fullscreenButton"
+                  type="button"
+                  aria-label="Visa spelaren i helskärm"
+                  title="Helskärm (F)"
+                >
+                  <span aria-hidden="true">⛶</span>
+                </button>
+              </div>
+
+              <div
+                class="caption-region"
+                id="captionRegion"
+                aria-live="off"
+                aria-atomic="true"
+                hidden
+              >
+                <span id="captionText"></span>
+              </div>
+
+              <div class="stage-status" id="stageStatus" role="status">
+                Laddar sagan…
+              </div>
+            </div>
+
+            <div class="control-panel">
+              <div class="story-heading">
+                <div>
+                  <p class="eyebrow" id="storyMeta">Ljudsaga</p>
+                  <h1 id="storyTitle">Sagostund</h1>
+                  <p class="chapter-title" id="chapterTitle"></p>
+                </div>
+                <button
+                  class="caption-toggle"
+                  id="captionButton"
+                  type="button"
+                  aria-pressed="true"
+                  title="Undertext av eller på (C)"
+                >
+                  <span aria-hidden="true">CC</span>
+                  <span id="captionButtonLabel">Undertext på</span>
+                </button>
+              </div>
+
+              <div class="timeline">
+                <input
+                  id="progressRange"
+                  class="progress-range"
+                  type="range"
+                  min="0"
+                  max="1"
+                  value="0"
+                  step="0.01"
+                  aria-label="Sagans uppspelningsposition"
+                >
+                <div class="time-row">
+                  <time id="currentTime">0:00</time>
+                  <span id="progressLabel">Kapitel 1</span>
+                  <time id="totalTime">0:00</time>
+                </div>
+              </div>
+
+              <div class="transport">
+                <div class="transport-main" aria-label="Uppspelningskontroller">
+                  <button
+                    class="transport-button"
+                    id="previousButton"
+                    type="button"
+                    aria-label="Föregående kapitel"
+                    title="Föregående kapitel"
+                  >
+                    <span aria-hidden="true">|◀</span>
+                  </button>
+                  <button
+                    class="play-button"
+                    id="playButton"
+                    type="button"
+                    aria-label="Spela"
+                    title="Spela eller pausa (mellanslag)"
+                  >
+                    <span id="playIcon" aria-hidden="true">▶</span>
+                  </button>
+                  <button
+                    class="transport-button"
+                    id="nextButton"
+                    type="button"
+                    aria-label="Nästa kapitel"
+                    title="Nästa kapitel"
+                  >
+                    <span aria-hidden="true">▶|</span>
+                  </button>
+                </div>
+
+                <label class="speed-control">
+                  <span>Hastighet</span>
+                  <select id="speedSelect" aria-label="Uppspelningshastighet">
+                    <option value="0.75">0,75×</option>
+                    <option value="1">1×</option>
+                    <option value="1.25">1,25×</option>
+                    <option value="1.5">1,5×</option>
+                    <option value="2">2×</option>
+                  </select>
+                </label>
+              </div>
+
+              <details class="transcript-panel">
+                <summary>Visa hela kapiteltexten</summary>
+                <div id="transcriptText" class="transcript-text"></div>
+              </details>
+            </div>
+          </div>
+
+          <aside class="chapter-rail" aria-labelledby="chapterListTitle">
+            <div class="chapter-rail-heading">
+              <p class="eyebrow">Innehåll</p>
+              <h2 id="chapterListTitle">Kapitel</h2>
+            </div>
+            <ol class="chapter-list" id="chapterList"></ol>
+          </aside>
+        </div>
+
+        <audio id="narration" preload="metadata"></audio>
+      </section>
+
+      <section class="error-panel" id="errorPanel" role="alert" hidden>
+        <h2>Det gick inte att öppna sagan</h2>
+        <p id="errorMessage"></p>
+        <button id="retryButton" type="button">Försök igen</button>
+      </section>
+    </main>
+
+    <footer class="app-footer">
+      <p>En lugn stund för stora och små.</p>
+      <p>Tangentbord: mellanslag spelar, piltangenter spolar, C visar text och F ger helskärm.</p>
+    </footer>
+
+    <script type="module" src="./assets/app.js"></script>
+  </body>
+</html>
