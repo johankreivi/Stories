@@ -9,6 +9,8 @@
     "validate": "node scripts/build-site.mjs --validate-only",
     "test": "npm run build && node scripts/smoke-test.mjs",
     "preview": "node scripts/serve-site.mjs",
-    "generate:audio": "powershell -NoProfile -ExecutionPolicy Bypass -File \"Stories\\sagan-om-de-107-spelen\\Skapa-ljudbok.ps1\""
+    "generate:audio": "powershell -NoProfile -ExecutionPolicy Bypass -File \"Stories\\sagan-om-de-107-spelen\\Skapa-ljudbok.ps1\"",
+    "generate:story": "powershell -NoProfile -ExecutionPolicy Bypass -File \"scripts\\generate-story-audio.ps1\"",
+    "generate:presentation-audio": "powershell -NoProfile -ExecutionPolicy Bypass -File \"scripts\\generate-story-audio.ps1\" -StorySlug den-stora-presentationen"
   }
 }

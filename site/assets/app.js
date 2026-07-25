@@ -7,6 +7,8 @@ const elements = {
   chapterImage: $("#chapterImage"),
   chapterChip: $("#chapterChip"),
   fullscreenButton: $("#fullscreenButton"),
+  navigationButton: $("#navigationButton"),
+  navigationButtonLabel: $("#navigationButtonLabel"),
   captionRegion: $("#captionRegion"),
   captionText: $("#captionText"),
   stageStatus: $("#stageStatus"),
@@ -23,13 +25,22 @@ const elements = {
   playButton: $("#playButton"),
   playIcon: $("#playIcon"),
   nextButton: $("#nextButton"),
+  castButton: $("#castButton"),
+  castLabel: $("#castLabel"),
   speedSelect: $("#speedSelect"),
   transcriptText: $("#transcriptText"),
   chapterList: $("#chapterList"),
   narration: $("#narration"),
   errorPanel: $("#errorPanel"),
   errorMessage: $("#errorMessage"),
-  retryButton: $("#retryButton")
+  retryButton: $("#retryButton"),
+  unlockDialog: $("#unlockDialog"),
+  unlockForm: $("#unlockForm"),
+  unlockTitle: $("#unlockTitle"),
+  unlockDescription: $("#unlockDescription"),
+  passwordInput: $("#passwordInput"),
+  unlockError: $("#unlockError"),
+  unlockCancelButton: $("#unlockCancelButton")
 };
 
 const state = {
@@ -43,11 +54,26 @@ const state = {
   captionTrackElement: null,
   captionsEnabled: localStorage.getItem("sagostund:captions") !== "off",
   playbackRate: Number(localStorage.getItem("sagostund:speed")) || 1,
+  navigationHidden:
+    localStorage.getItem("sagostund:navigation-hidden") === "true",
   started: false,
   loadingToken: 0,
   animationFrame: 0,
   lastCaption: "",
-  previewTime: null
+  previewTime: null,
+  cast: {
+    available: false,
+    initialized: false,
+    loading: false,
+    loaded: false,
+    session: null,
+    remotePlayer: null,
+    controller: null,
+    listeners: [],
+    chapterIndex: 0,
+    currentTime: 0,
+    isPaused: true
+  }
 };
 
 function resolveUrl(relativePath) {
@@ -60,6 +86,124 @@ async function fetchJson(relativePath) {
     throw new Error(`Kunde inte läsa ${relativePath} (${response.status}).`);
   }
   return response.json();
+}
+
+function bytesFromBase64(value) {
+  return Uint8Array.from(atob(value), (character) => character.charCodeAt(0));
+}
+
+function constantTimeEqual(left, right) {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  let difference = 0;
+  for (let index = 0; index < left.length; index += 1) {
+    difference |= left[index] ^ right[index];
+  }
+  return difference === 0;
+}
+
+async function verifyStoryPassword(password, access) {
+  if (!window.crypto?.subtle) {
+    throw new Error("Webbläsaren saknar stöd för säker lösenordskontroll.");
+  }
+
+  const key = await window.crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(password),
+    "PBKDF2",
+    false,
+    ["deriveBits"]
+  );
+  const derived = new Uint8Array(
+    await window.crypto.subtle.deriveBits(
+      {
+        name: "PBKDF2",
+        hash: "SHA-256",
+        salt: bytesFromBase64(access.salt),
+        iterations: access.iterations
+      },
+      key,
+      256
+    )
+  );
+  return constantTimeEqual(derived, bytesFromBase64(access.hash));
+}
+
+function storyUnlockKey(story) {
+  return `sagostund:unlocked:${story.slug}:${story.access.hash}`;
+}
+
+async function requestStoryUnlock(story) {
+  if (!story.access) {
+    return true;
+  }
+  if (sessionStorage.getItem(storyUnlockKey(story)) === "true") {
+    return true;
+  }
+
+  elements.unlockTitle.textContent = `Öppna ${story.title}`;
+  elements.unlockDescription.textContent =
+    "Ange bokens lösenord. Upplåsningen gäller under den här fliken.";
+  elements.passwordInput.value = "";
+  elements.unlockError.hidden = true;
+
+  return new Promise((resolve) => {
+    const submitButton = elements.unlockForm.querySelector(
+      'button[type="submit"]'
+    );
+
+    const cleanup = () => {
+      elements.unlockForm.removeEventListener("submit", onSubmit);
+      elements.unlockCancelButton.removeEventListener("click", onCancel);
+      elements.unlockDialog.removeEventListener("cancel", onDialogCancel);
+    };
+    const finish = (unlocked) => {
+      cleanup();
+      if (elements.unlockDialog.open) {
+        elements.unlockDialog.close();
+      }
+      resolve(unlocked);
+    };
+    const onCancel = () => finish(false);
+    const onDialogCancel = (event) => {
+      event.preventDefault();
+      finish(false);
+    };
+    const onSubmit = async (event) => {
+      event.preventDefault();
+      elements.unlockError.hidden = true;
+      submitButton.disabled = true;
+      try {
+        const valid = await verifyStoryPassword(
+          elements.passwordInput.value,
+          story.access
+        );
+        if (valid) {
+          sessionStorage.setItem(storyUnlockKey(story), "true");
+          finish(true);
+          return;
+        }
+        elements.unlockError.hidden = false;
+        elements.passwordInput.select();
+      } catch (error) {
+        elements.unlockError.textContent =
+          error instanceof Error
+            ? error.message
+            : "Lösenordet kunde inte kontrolleras.";
+        elements.unlockError.hidden = false;
+      } finally {
+        submitButton.disabled = false;
+      }
+    };
+
+    elements.unlockForm.addEventListener("submit", onSubmit);
+    elements.unlockCancelButton.addEventListener("click", onCancel);
+    elements.unlockDialog.addEventListener("cancel", onDialogCancel);
+    elements.unlockDialog.showModal();
+    elements.passwordInput.focus();
+  });
 }
 
 function formatTime(seconds) {
@@ -131,6 +275,10 @@ function parseVtt(raw) {
 
 function currentChapter() {
   return state.story?.chapters[state.chapterIndex] ?? null;
+}
+
+function chapterDisplayNumber(chapter) {
+  return chapter?.displayNumber ?? chapter?.number ?? 1;
 }
 
 function setStageStatus(message = "") {
@@ -205,7 +353,7 @@ function renderStoryPicker() {
   for (const story of state.library) {
     const option = document.createElement("option");
     option.value = story.slug;
-    option.textContent = story.title;
+    option.textContent = `${story.locked ? "🔒 " : ""}${story.title}`;
     elements.storySelect.append(option);
   }
 }
@@ -222,14 +370,14 @@ function renderChapterList() {
 
     const number = document.createElement("span");
     number.className = "chapter-number";
-    number.textContent = String(chapter.number).padStart(2, "0");
+    number.textContent = String(chapterDisplayNumber(chapter)).padStart(2, "0");
 
     const copy = document.createElement("span");
     copy.className = "chapter-copy";
     const title = document.createElement("strong");
     title.textContent = chapter.title;
     const label = document.createElement("small");
-    label.textContent = `Kapitel ${chapter.number}`;
+    label.textContent = `Kapitel ${chapterDisplayNumber(chapter)}`;
     copy.append(title, label);
 
     const duration = document.createElement("span");
@@ -238,10 +386,14 @@ function renderChapterList() {
 
     button.append(number, copy, duration);
     button.addEventListener("click", async () => {
-      const shouldContinue = !elements.narration.paused;
+      const shouldContinue = !playbackIsPaused();
       state.started = true;
-      await loadChapter(index, { autoplay: shouldContinue });
-      setCurrentChapterImage();
+      if (isCasting()) {
+        await startCastPlayback(index, 0, { autoplay: shouldContinue });
+      } else {
+        await loadChapter(index, { autoplay: shouldContinue });
+        setCurrentChapterImage();
+      }
     });
     item.append(button);
     elements.chapterList.append(item);
@@ -275,9 +427,9 @@ function updateChapterUi() {
   }
 
   elements.chapterChip.textContent =
-    `Kapitel ${chapter.number} av ${state.story.chapters.length}`;
+    `Kapitel ${chapterDisplayNumber(chapter)} av ${state.story.chapters.length - 1 + chapterDisplayNumber(state.story.chapters[0])}`;
   elements.chapterTitle.textContent = chapter.title;
-  elements.progressLabel.textContent = `Kapitel ${chapter.number}`;
+  elements.progressLabel.textContent = `Kapitel ${chapterDisplayNumber(chapter)}`;
   elements.previousButton.disabled = state.chapterIndex === 0;
   elements.nextButton.disabled =
     state.chapterIndex === state.story.chapters.length - 1;
@@ -300,8 +452,22 @@ function calculateOffsets() {
 function globalCurrentTime() {
   return (
     (state.chapterOffsets[state.chapterIndex] ?? 0) +
-    (elements.narration.currentTime || 0)
+    playbackCurrentTime()
   );
+}
+
+function playbackCurrentTime() {
+  if (isCasting()) {
+    return Number(state.cast.remotePlayer?.currentTime) || state.cast.currentTime || 0;
+  }
+  return elements.narration.currentTime || 0;
+}
+
+function playbackIsPaused() {
+  if (isCasting()) {
+    return state.cast.remotePlayer?.isPaused ?? state.cast.isPaused;
+  }
+  return elements.narration.paused;
 }
 
 function updateProgress() {
@@ -355,10 +521,10 @@ function renderCaption() {
 
   let text = "";
   const activeCues = state.captionTrack?.activeCues;
-  if (activeCues?.length) {
+  if (!isCasting() && activeCues?.length) {
     text = activeCues[0].text;
   } else {
-    text = captionFromFallback(elements.narration.currentTime || 0);
+    text = captionFromFallback(playbackCurrentTime());
   }
 
   if (text !== state.lastCaption) {
@@ -490,8 +656,6 @@ async function loadChapter(index, options = {}) {
 async function selectStory(slug) {
   clearError();
   setStageStatus("Laddar sagan…");
-  elements.narration.pause();
-  cancelAnimationFrame(state.animationFrame);
 
   const libraryEntry =
     state.library.find((story) => story.slug === slug) ?? state.library[0];
@@ -499,7 +663,18 @@ async function selectStory(slug) {
     throw new Error("Inga sagor hittades.");
   }
 
-  state.story = await fetchJson(libraryEntry.manifest);
+  const nextStory = await fetchJson(libraryEntry.manifest);
+  const unlocked = await requestStoryUnlock(nextStory);
+  if (!unlocked) {
+    elements.storySelect.value = state.story?.slug ?? "";
+    setStageStatus("");
+    return false;
+  }
+
+  const continueCasting = isCasting();
+  elements.narration.pause();
+  cancelAnimationFrame(state.animationFrame);
+  state.story = nextStory;
   state.chapterIndex = 0;
   state.started = false;
 
@@ -520,6 +695,10 @@ async function selectStory(slug) {
   await loadChapter(0);
   setCoverImage();
   setStageStatus("");
+  if (continueCasting) {
+    await startCastPlayback(0, 0, { autoplay: true });
+  }
+  return true;
 }
 
 async function togglePlay() {
@@ -530,6 +709,11 @@ async function togglePlay() {
   if (!state.started) {
     state.started = true;
     setCurrentChapterImage();
+  }
+
+  if (isCasting()) {
+    state.cast.controller.playOrPause();
+    return;
   }
 
   if (elements.narration.paused) {
@@ -565,8 +749,24 @@ async function seekToGlobalTime(target) {
   }
 
   const chapterTime = bounded - state.chapterOffsets[nextIndex];
-  const shouldContinue = !elements.narration.paused;
+  const shouldContinue = !playbackIsPaused();
   state.started = true;
+
+  if (isCasting()) {
+    if (nextIndex === state.chapterIndex) {
+      state.cast.remotePlayer.currentTime = chapterTime;
+      state.cast.controller.seek();
+      state.cast.currentTime = chapterTime;
+      setCurrentChapterImage();
+      updateProgress();
+      renderCaption();
+    } else {
+      await startCastPlayback(nextIndex, chapterTime, {
+        autoplay: shouldContinue
+      });
+    }
+    return;
+  }
 
   if (nextIndex === state.chapterIndex) {
     elements.narration.currentTime = chapterTime;
@@ -603,11 +803,278 @@ function runAnimationLoop() {
   const tick = () => {
     updateProgress();
     renderCaption();
-    if (!elements.narration.paused && !elements.narration.ended) {
+    if (!playbackIsPaused() && (isCasting() || !elements.narration.ended)) {
       state.animationFrame = requestAnimationFrame(tick);
     }
   };
   state.animationFrame = requestAnimationFrame(tick);
+}
+
+function setNavigationHidden(hidden) {
+  state.navigationHidden = hidden;
+  document.body.classList.toggle("is-navigation-hidden", hidden);
+  localStorage.setItem("sagostund:navigation-hidden", String(hidden));
+  elements.navigationButton.setAttribute("aria-pressed", String(hidden));
+  elements.navigationButton.setAttribute(
+    "aria-label",
+    hidden ? "Visa sidans navigation" : "Dölj sidans navigation"
+  );
+  elements.navigationButton.title = hidden
+    ? "Visa navigation (N)"
+    : "Dölj navigation (N)";
+  elements.navigationButtonLabel.textContent = hidden
+    ? "Visa navigation"
+    : "Dölj navigation";
+  elements.navigationButton.querySelector("span").textContent = hidden
+    ? "⌄"
+    : "⌃";
+}
+
+function isCasting() {
+  return Boolean(
+    state.cast.loaded &&
+      state.cast.session &&
+      state.cast.remotePlayer &&
+      state.cast.remotePlayer.isConnected !== false
+  );
+}
+
+function setCastUi(message = "") {
+  const connected = isCasting();
+  elements.castButton.classList.toggle("is-ready", state.cast.available);
+  elements.castButton.classList.toggle("is-connected", connected);
+  elements.castLabel.textContent =
+    message || (connected ? "Castar" : "Casta");
+  elements.speedSelect.disabled = connected;
+  elements.speedSelect.title = connected
+    ? "Uppspelningshastighet kan ändras när ljudet spelas på den här enheten."
+    : "";
+}
+
+function detachRemotePlayer() {
+  if (state.cast.controller) {
+    for (const [eventType, listener] of state.cast.listeners) {
+      state.cast.controller.removeEventListener(eventType, listener);
+    }
+  }
+  state.cast.listeners = [];
+  state.cast.remotePlayer = null;
+  state.cast.controller = null;
+}
+
+function syncCastChapter(index) {
+  if (
+    !state.story ||
+    !Number.isInteger(index) ||
+    index < 0 ||
+    index >= state.story.chapters.length
+  ) {
+    return;
+  }
+
+  state.cast.chapterIndex = index;
+  if (state.chapterIndex === index) {
+    return;
+  }
+
+  state.chapterIndex = index;
+  state.started = true;
+  updateChapterUi();
+  setCurrentChapterImage();
+  loadCaptions(currentChapter(), ++state.loadingToken).catch((error) => {
+    console.warn("Cast-undertexten kunde inte laddas.", error);
+  });
+}
+
+function updateFromRemotePlayer() {
+  const player = state.cast.remotePlayer;
+  if (!player) {
+    return;
+  }
+
+  state.cast.currentTime = Number(player.currentTime) || 0;
+  state.cast.isPaused = Boolean(player.isPaused);
+
+  const mediaStory = player.mediaInfo?.customData?.storySlug;
+  const mediaChapter = Number(player.mediaInfo?.customData?.chapterIndex);
+  if (mediaStory === state.story?.slug && Number.isInteger(mediaChapter)) {
+    syncCastChapter(mediaChapter);
+  }
+
+  updatePlayButton(!state.cast.isPaused);
+  updateProgress();
+  renderCaption();
+  if (!state.cast.isPaused) {
+    runAnimationLoop();
+  }
+}
+
+function attachRemotePlayer(session) {
+  detachRemotePlayer();
+  state.cast.session = session;
+  state.cast.remotePlayer = new cast.framework.RemotePlayer();
+  state.cast.controller = new cast.framework.RemotePlayerController(
+    state.cast.remotePlayer
+  );
+
+  const eventTypes = [
+    cast.framework.RemotePlayerEventType.CURRENT_TIME_CHANGED,
+    cast.framework.RemotePlayerEventType.IS_PAUSED_CHANGED,
+    cast.framework.RemotePlayerEventType.MEDIA_INFO_CHANGED,
+    cast.framework.RemotePlayerEventType.IS_CONNECTED_CHANGED,
+    cast.framework.RemotePlayerEventType.PLAYER_STATE_CHANGED
+  ];
+  for (const eventType of eventTypes) {
+    const listener = updateFromRemotePlayer;
+    state.cast.controller.addEventListener(eventType, listener);
+    state.cast.listeners.push([eventType, listener]);
+  }
+}
+
+function castMediaForChapter(chapter, index) {
+  const mediaInfo = new chrome.cast.media.MediaInfo(
+    resolveUrl(chapter.audio),
+    "audio/mpeg"
+  );
+  const metadata = new chrome.cast.media.GenericMediaMetadata();
+  metadata.title = chapter.title;
+  metadata.subtitle =
+    `Kapitel ${chapterDisplayNumber(chapter)} · ${state.story.title}`;
+  metadata.images = [new chrome.cast.Image(resolveUrl(chapter.image))];
+  mediaInfo.metadata = metadata;
+  mediaInfo.duration = chapter.duration;
+  mediaInfo.customData = {
+    storySlug: state.story.slug,
+    chapterIndex: index
+  };
+
+  const subtitleTrack = new chrome.cast.media.Track(
+    1,
+    chrome.cast.media.TrackType.TEXT
+  );
+  subtitleTrack.trackContentId = resolveUrl(chapter.captions);
+  subtitleTrack.trackContentType = "text/vtt";
+  subtitleTrack.subtype = chrome.cast.media.TextTrackType.SUBTITLES;
+  subtitleTrack.name = "Svenska";
+  subtitleTrack.language = state.story.language;
+  mediaInfo.tracks = [subtitleTrack];
+  return mediaInfo;
+}
+
+async function startCastPlayback(
+  chapterIndex = state.chapterIndex,
+  startTime = playbackCurrentTime(),
+  options = {}
+) {
+  if (!state.cast.session || !state.story || state.cast.loading) {
+    return;
+  }
+
+  state.cast.loading = true;
+  setCastUi("Ansluter…");
+  elements.narration.pause();
+
+  try {
+    if (!state.cast.remotePlayer) {
+      attachRemotePlayer(state.cast.session);
+    }
+
+    const items = state.story.chapters.map((chapter, index) => {
+      const item = new chrome.cast.media.QueueItem(
+        castMediaForChapter(chapter, index)
+      );
+      item.autoplay =
+        index === chapterIndex ? options.autoplay !== false : true;
+      item.preloadTime = 20;
+      if (state.captionsEnabled) {
+        item.activeTrackIds = [1];
+      }
+      return item;
+    });
+    const request = new chrome.cast.media.QueueLoadRequest(items);
+    request.startIndex = chapterIndex;
+    request.currentTime = Math.max(0, startTime);
+    request.repeatMode = chrome.cast.media.RepeatMode.OFF;
+
+    await state.cast.session.loadMedia(request);
+    state.cast.loaded = true;
+    state.cast.chapterIndex = chapterIndex;
+    state.cast.currentTime = Math.max(0, startTime);
+    state.started = true;
+    syncCastChapter(chapterIndex);
+    setCurrentChapterImage();
+    updateFromRemotePlayer();
+    setStageStatus("");
+  } catch (error) {
+    state.cast.loaded = false;
+    setStageStatus("Det gick inte att starta Chromecast.");
+    console.warn("Chromecast kunde inte startas.", error);
+  } finally {
+    state.cast.loading = false;
+    setCastUi();
+  }
+}
+
+async function endCastPlayback() {
+  const chapterIndex = state.cast.chapterIndex;
+  const chapterTime = state.cast.currentTime;
+  state.cast.loaded = false;
+  state.cast.session = null;
+  detachRemotePlayer();
+  setCastUi();
+
+  if (state.story) {
+    await loadChapter(chapterIndex, { startTime: chapterTime });
+    setCurrentChapterImage();
+    setStageStatus("Casting avslutad.");
+  }
+}
+
+async function handleCastSessionState(event) {
+  const sessionState = event.sessionState;
+  const startedStates = [
+    cast.framework.SessionState.SESSION_STARTED,
+    cast.framework.SessionState.SESSION_RESUMED
+  ];
+  if (startedStates.includes(sessionState)) {
+    attachRemotePlayer(event.session);
+    if (state.story) {
+      await startCastPlayback(state.chapterIndex, playbackCurrentTime(), {
+        autoplay: !elements.narration.paused
+      });
+    }
+    return;
+  }
+
+  if (
+    sessionState === cast.framework.SessionState.SESSION_ENDED &&
+    state.cast.session
+  ) {
+    await endCastPlayback();
+  }
+}
+
+function initializeCast() {
+  if (
+    state.cast.initialized ||
+    !window.cast?.framework ||
+    !window.chrome?.cast
+  ) {
+    return;
+  }
+
+  const context = cast.framework.CastContext.getInstance();
+  context.setOptions({
+    receiverApplicationId: chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
+    autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
+  });
+  context.addEventListener(
+    cast.framework.CastContextEventType.SESSION_STATE_CHANGED,
+    handleCastSessionState
+  );
+  state.cast.available = true;
+  state.cast.initialized = true;
+  setCastUi();
 }
 
 function fauxFullscreenEnabled() {
@@ -686,18 +1153,34 @@ function bindEvents() {
   elements.playButton.addEventListener("click", togglePlay);
   elements.previousButton.addEventListener("click", async () => {
     if (state.chapterIndex > 0) {
-      const shouldContinue = !elements.narration.paused;
+      const shouldContinue = !playbackIsPaused();
       state.started = true;
-      await loadChapter(state.chapterIndex - 1, { autoplay: shouldContinue });
-      setCurrentChapterImage();
+      if (isCasting()) {
+        await startCastPlayback(state.chapterIndex - 1, 0, {
+          autoplay: shouldContinue
+        });
+      } else {
+        await loadChapter(state.chapterIndex - 1, {
+          autoplay: shouldContinue
+        });
+        setCurrentChapterImage();
+      }
     }
   });
   elements.nextButton.addEventListener("click", async () => {
     if (state.chapterIndex < state.story.chapters.length - 1) {
-      const shouldContinue = !elements.narration.paused;
+      const shouldContinue = !playbackIsPaused();
       state.started = true;
-      await loadChapter(state.chapterIndex + 1, { autoplay: shouldContinue });
-      setCurrentChapterImage();
+      if (isCasting()) {
+        await startCastPlayback(state.chapterIndex + 1, 0, {
+          autoplay: shouldContinue
+        });
+      } else {
+        await loadChapter(state.chapterIndex + 1, {
+          autoplay: shouldContinue
+        });
+        setCurrentChapterImage();
+      }
     }
   });
 
@@ -724,8 +1207,16 @@ function bindEvents() {
   elements.captionButton.addEventListener("click", () => {
     setCaptionsEnabled(!state.captionsEnabled);
   });
+  elements.navigationButton.addEventListener("click", () => {
+    setNavigationHidden(!state.navigationHidden);
+  });
   elements.fullscreenButton.addEventListener("click", toggleFullscreen);
   document.addEventListener("fullscreenchange", updateFullscreenButton);
+  window.addEventListener("sagostund:cast-api", (event) => {
+    if (event.detail?.isAvailable) {
+      initializeCast();
+    }
+  });
 
   elements.narration.addEventListener("play", () => {
     state.started = true;
@@ -781,6 +1272,8 @@ function bindEvents() {
       setCaptionsEnabled(!state.captionsEnabled);
     } else if (event.key.toLowerCase() === "f") {
       await toggleFullscreen();
+    } else if (event.key.toLowerCase() === "n") {
+      setNavigationHidden(!state.navigationHidden);
     } else if (event.key === "Escape" && fauxFullscreenEnabled()) {
       exitFauxFullscreen();
     }
@@ -795,14 +1288,23 @@ async function boot() {
   try {
     bindEvents();
     setCaptionsEnabled(state.captionsEnabled);
+    setNavigationHidden(state.navigationHidden);
     elements.speedSelect.value = String(state.playbackRate);
+    setCastUi();
+    if (window.__sagostundCastAvailable) {
+      initializeCast();
+    }
 
     const libraryData = await fetchJson("./data/library.json");
     state.library = libraryData.stories ?? [];
     renderStoryPicker();
 
     const requestedStory = new URL(window.location.href).searchParams.get("saga");
-    await selectStory(requestedStory);
+    const initialStory =
+      state.library.find((story) => story.slug === requestedStory)?.slug ??
+      state.library.find((story) => !story.locked)?.slug ??
+      state.library[0]?.slug;
+    await selectStory(initialStory);
   } catch (error) {
     showError(error);
   }

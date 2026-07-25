@@ -55,6 +55,25 @@ Regler:
 Kör `npm.cmd run validate` innan du publicerar. Samma kontroll körs automatiskt av
 GitHub Pages-arbetsflödet.
 
+### Visningsnummer och låsta böcker
+
+Källfilerna börjar alltid på `01`, men en bok kan visa andra kapitelnummer:
+
+```json
+{
+  "chapterNumberStart": 0
+}
+```
+
+Ett lösenordslås anges med en saltad PBKDF2-SHA-256-hash i `saga.json`. Se
+`Stories/den-stora-presentationen/saga.json` som exempel. Lösenordet sparas
+aldrig i klartext och en lyckad upplåsning gäller bara i den aktuella
+webbläsarfliken.
+
+Observera att en statisk webbplats inte kan göra mediefiler hemliga. Låset är en
+åtkomstspärr i gränssnittet, medan filer i ett publikt repository fortfarande
+kan hittas av en teknisk användare.
+
 ## Synkroniserade undertexter
 
 Den medföljande ljudgeneratorn skapar MP3 och WebVTT i samma TTS-körning. Det
@@ -64,9 +83,26 @@ gör att tidskoderna följer exakt det ljud som sparas:
 npm.cmd run generate:audio
 ```
 
+För valfri saga med standardstrukturen:
+
+```powershell
+npm.cmd run generate:story -- -StorySlug min-saga
+```
+
 WebVTT-filerna placeras i sagans `kapitel`-mapp. Skapa inte nya tidskoder genom
 att köra TTS separat mot en äldre MP3-fil; ljud och tidskoder ska alltid
 genereras tillsammans.
+
+## Chromecast och fokuserad uppspelning
+
+Cast-knappen visas i Chrome när en Chromecast-enhet finns på samma nätverk.
+Spelaren skickar hela kapitelkön, kapitelbilder och svenska WebVTT-spår till
+Google Cast Default Media Receiver. GitHub Pages använder HTTPS, vilket krävs
+för den här webbläsarintegrationen.
+
+Knappen **Dölj navigation** eller tangenten `N` döljer sidhuvud och sidfot under
+uppspelning. Inställningen sparas lokalt och knappen i spelaren finns kvar så
+att navigationen alltid kan återställas.
 
 ## Publicering
 

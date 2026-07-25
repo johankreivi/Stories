@@ -245,6 +245,32 @@ async function scanStory(storyDirent) {
   const metadata = await readOptionalJson(path.join(sourceRoot, "saga.json"), {});
   const language = metadata.language || "sv-SE";
   const title = metadata.title || titleFromSlug(slug);
+  const chapterNumberStart = Number.isInteger(metadata.chapterNumberStart)
+    ? metadata.chapterNumberStart
+    : 1;
+  const access = metadata.access ?? null;
+  if (access) {
+    assert(
+      access.type === "password",
+      `${slug}: access.type måste vara "password".`
+    );
+    assert(
+      access.algorithm === "PBKDF2-SHA-256",
+      `${slug}: access.algorithm måste vara "PBKDF2-SHA-256".`
+    );
+    assert(
+      Number.isInteger(access.iterations) && access.iterations >= 100000,
+      `${slug}: access.iterations måste vara minst 100000.`
+    );
+    assert(
+      typeof access.salt === "string" && access.salt.length > 0,
+      `${slug}: access.salt saknas.`
+    );
+    assert(
+      typeof access.hash === "string" && access.hash.length > 0,
+      `${slug}: access.hash saknas.`
+    );
+  }
 
   const [imageFiles, chapterFiles, audioFiles] = await Promise.all([
     readdir(imageRoot, { withFileTypes: true }),
@@ -389,7 +415,12 @@ async function scanStory(storyDirent) {
     );
   });
 
-  const publicChapters = chapters.map(({ sources, outputs, cueCount, ...chapter }) => chapter);
+  const publicChapters = chapters.map(
+    ({ sources, outputs, cueCount, ...chapter }, index) => ({
+      ...chapter,
+      displayNumber: chapterNumberStart + index
+    })
+  );
   const totalDuration = Math.round(
     publicChapters.reduce((sum, chapter) => sum + chapter.duration, 0) * 1000
   ) / 1000;
@@ -406,6 +437,7 @@ async function scanStory(storyDirent) {
       description: metadata.description || "",
       language,
       narrator: metadata.narrator || "",
+      access,
       cover: cover.url,
       totalDuration,
       chapters: publicChapters
@@ -475,6 +507,7 @@ async function main() {
         cover: story.publicManifest.cover,
         chapterCount: story.publicManifest.chapters.length,
         totalDuration: story.publicManifest.totalDuration,
+        locked: Boolean(story.publicManifest.access),
         manifest: `./data/stories/${story.slug}.json`
       }))
     };

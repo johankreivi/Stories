@@ -1,5 +1,6 @@
 dist/
 node_modules/
 Stories/**/.tts-verktyg/node_modules/
+scripts/.tts-verktyg/
 Stories/**/*.partial-*
 Stories/**/*.mp3.json

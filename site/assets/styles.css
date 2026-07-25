@@ -143,6 +143,16 @@ a:focus-visible {
   margin: 0 auto;
 }
 
+body.is-navigation-hidden .app-header,
+body.is-navigation-hidden .app-footer {
+  display: none;
+}
+
+body.is-navigation-hidden .app-main {
+  margin-top: 20px;
+  margin-bottom: 20px;
+}
+
 .player-shell {
   overflow: hidden;
   border: 1px solid rgba(16, 33, 63, 0.1);
@@ -306,6 +316,13 @@ a:focus-visible {
   gap: 24px;
 }
 
+.heading-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .eyebrow {
   margin: 0 0 7px;
   color: var(--blue);
@@ -330,7 +347,8 @@ a:focus-visible {
   font-size: 0.98rem;
 }
 
-.caption-toggle {
+.caption-toggle,
+.navigation-toggle {
   min-height: 42px;
   flex: 0 0 auto;
   display: inline-flex;
@@ -354,6 +372,20 @@ a:focus-visible {
   background: var(--night);
   font-size: 0.65rem;
   letter-spacing: 0.04em;
+}
+
+.navigation-toggle {
+  color: var(--muted);
+}
+
+.navigation-toggle > span:first-child {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.navigation-toggle[aria-pressed="true"] {
+  color: var(--night);
+  background: #eef2f7;
 }
 
 .caption-toggle[aria-pressed="false"] {
@@ -488,8 +520,6 @@ a:focus-visible {
 }
 
 .speed-control {
-  grid-column: 3;
-  justify-self: end;
   display: flex;
   align-items: center;
   gap: 9px;
@@ -498,9 +528,54 @@ a:focus-visible {
   font-weight: 700;
 }
 
+.player-options {
+  grid-column: 3;
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.cast-control {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 750;
+}
+
+.cast-button {
+  --connected-color: var(--blue);
+  --disconnected-color: var(--night);
+  width: 38px;
+  height: 38px;
+  display: none;
+  padding: 7px;
+  border-radius: 11px;
+  background: #eef2f7;
+}
+
+.cast-button.is-ready {
+  display: block;
+}
+
+.cast-button.is-connected {
+  background: rgba(47, 114, 196, 0.13);
+}
+
+.cast-button:not(.is-ready) + .cast-label {
+  display: none;
+}
+
 .speed-control select {
   min-height: 38px;
   padding-right: 30px;
+}
+
+.speed-control select:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .transcript-panel {
@@ -657,6 +732,100 @@ a:focus-visible {
   font-weight: 750;
 }
 
+.unlock-dialog {
+  width: min(calc(100% - 32px), 460px);
+  padding: 0;
+  border: 0;
+  border-radius: 24px;
+  color: var(--ink);
+  background: var(--surface);
+  box-shadow: 0 30px 90px rgba(5, 17, 37, 0.38);
+}
+
+.unlock-dialog::backdrop {
+  background: rgba(5, 17, 37, 0.72);
+  backdrop-filter: blur(7px);
+}
+
+.unlock-card {
+  padding: 34px;
+}
+
+.unlock-icon {
+  width: 52px;
+  height: 52px;
+  margin-bottom: 20px;
+  display: grid;
+  place-items: center;
+  border-radius: 16px;
+  background: rgba(244, 185, 66, 0.22);
+  font-size: 1.45rem;
+}
+
+.unlock-card h2 {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.9rem;
+}
+
+.unlock-card > p:not(.eyebrow, .unlock-error) {
+  margin: 10px 0 22px;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.password-field {
+  display: grid;
+  gap: 8px;
+  color: var(--ink);
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
+.password-field input {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: var(--ink);
+  background: white;
+  font-size: 1.05rem;
+}
+
+.unlock-error {
+  margin: 10px 0 0;
+  color: #a52b2b;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.unlock-actions {
+  margin-top: 24px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.unlock-actions button {
+  min-height: 44px;
+  padding: 0 17px;
+  border-radius: 12px;
+  font-weight: 750;
+}
+
+.primary-button {
+  border: 0;
+  color: white;
+  background: var(--night);
+}
+
+.secondary-button {
+  border: 1px solid var(--line);
+  color: var(--muted);
+  background: transparent;
+}
+
 .app-footer {
   width: min(calc(100% - 40px), var(--page-width));
   margin: 26px auto 34px;
@@ -801,8 +970,9 @@ body.has-faux-fullscreen {
     display: block;
   }
 
-  .caption-toggle {
+  .heading-actions {
     margin-top: 14px;
+    flex-wrap: wrap;
   }
 
   .transport {
@@ -811,12 +981,14 @@ body.has-faux-fullscreen {
   }
 
   .transport-main,
-  .speed-control {
+  .player-options {
     grid-column: 1;
   }
 
-  .speed-control {
+  .player-options {
     justify-self: center;
+    flex-wrap: wrap;
+    justify-content: center;
   }
 
   .chapter-rail {
@@ -832,6 +1004,10 @@ body.has-faux-fullscreen {
     margin-top: 6px;
   }
 
+  body.is-navigation-hidden .app-main {
+    margin: 0;
+  }
+
   .player-shell:fullscreen .story-heading,
   .player-shell.is-faux-fullscreen .story-heading {
     display: none;
@@ -845,6 +1021,18 @@ body.has-faux-fullscreen {
   .player-shell:fullscreen .timeline,
   .player-shell.is-faux-fullscreen .timeline {
     margin-top: 0;
+  }
+}
+
+@media (max-width: 440px) {
+  .caption-toggle,
+  .navigation-toggle {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
+  .unlock-card {
+    padding: 28px 22px 24px;
   }
 }
 

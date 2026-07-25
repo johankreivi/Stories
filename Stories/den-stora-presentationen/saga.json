@@ -1,0 +1,14 @@
+{
+  "title": "Den stora presentationen",
+  "description": "Den högtidliga och fullständigt skoningslösa presentationen av lagen i 107-årsspelen.",
+  "language": "sv-SE",
+  "narrator": "Mattias",
+  "chapterNumberStart": 0,
+  "access": {
+    "type": "password",
+    "algorithm": "PBKDF2-SHA-256",
+    "iterations": 210000,
+    "salt": "wJM2rFpSqBlnBYLrX0za5Q==",
+    "hash": "LmzEJYbqM2rm76t/BOmyaC66ulsL47wBpJ8GPJutLeA="
+  }
+}

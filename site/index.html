@@ -80,16 +80,28 @@
                   <h1 id="storyTitle">Sagostund</h1>
                   <p class="chapter-title" id="chapterTitle"></p>
                 </div>
-                <button
-                  class="caption-toggle"
-                  id="captionButton"
-                  type="button"
-                  aria-pressed="true"
-                  title="Undertext av eller på (C)"
-                >
-                  <span aria-hidden="true">CC</span>
-                  <span id="captionButtonLabel">Undertext på</span>
-                </button>
+                <div class="heading-actions">
+                  <button
+                    class="caption-toggle"
+                    id="captionButton"
+                    type="button"
+                    aria-pressed="true"
+                    title="Undertext av eller på (C)"
+                  >
+                    <span aria-hidden="true">CC</span>
+                    <span id="captionButtonLabel">Undertext på</span>
+                  </button>
+                  <button
+                    class="navigation-toggle"
+                    id="navigationButton"
+                    type="button"
+                    aria-pressed="false"
+                    title="Dölj sidans navigation (N)"
+                  >
+                    <span aria-hidden="true">⌃</span>
+                    <span id="navigationButtonLabel">Dölj navigation</span>
+                  </button>
+                </div>
               </div>
 
               <div class="timeline">
@@ -141,16 +153,27 @@
                   </button>
                 </div>
 
-                <label class="speed-control">
-                  <span>Hastighet</span>
-                  <select id="speedSelect" aria-label="Uppspelningshastighet">
-                    <option value="0.75">0,75×</option>
-                    <option value="1">1×</option>
-                    <option value="1.25">1,25×</option>
-                    <option value="1.5">1,5×</option>
-                    <option value="2">2×</option>
-                  </select>
-                </label>
+                <div class="player-options">
+                  <div class="cast-control">
+                    <google-cast-launcher
+                      class="cast-button"
+                      id="castButton"
+                      aria-label="Casta ljudboken"
+                      title="Casta till Chromecast"
+                    ></google-cast-launcher>
+                    <span class="cast-label" id="castLabel">Casta</span>
+                  </div>
+                  <label class="speed-control">
+                    <span>Hastighet</span>
+                    <select id="speedSelect" aria-label="Uppspelningshastighet">
+                      <option value="0.75">0,75×</option>
+                      <option value="1">1×</option>
+                      <option value="1.25">1,25×</option>
+                      <option value="1.5">1,5×</option>
+                      <option value="2">2×</option>
+                    </select>
+                  </label>
+                </div>
               </div>
 
               <details class="transcript-panel">
@@ -181,9 +204,54 @@
 
     <footer class="app-footer">
       <p>En lugn stund för stora och små.</p>
-      <p>Tangentbord: mellanslag spelar, piltangenter spolar, C visar text och F ger helskärm.</p>
+      <p>Tangentbord: mellanslag spelar, piltangenter spolar, C visar text, F ger helskärm och N döljer navigationen.</p>
     </footer>
 
+    <dialog class="unlock-dialog" id="unlockDialog" aria-labelledby="unlockTitle">
+      <form class="unlock-card" id="unlockForm" method="dialog">
+        <div class="unlock-icon" aria-hidden="true">🔒</div>
+        <p class="eyebrow">Låst bok</p>
+        <h2 id="unlockTitle">Öppna boken</h2>
+        <p id="unlockDescription">
+          Ange bokens lösenord för att fortsätta.
+        </p>
+        <label class="password-field">
+          <span>Lösenord</span>
+          <input
+            id="passwordInput"
+            name="password"
+            type="password"
+            inputmode="numeric"
+            autocomplete="current-password"
+            required
+          >
+        </label>
+        <p class="unlock-error" id="unlockError" role="alert" hidden>
+          Lösenordet stämmer inte. Försök igen.
+        </p>
+        <div class="unlock-actions">
+          <button class="secondary-button" id="unlockCancelButton" type="button">
+            Avbryt
+          </button>
+          <button class="primary-button" type="submit">Öppna boken</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script>
+      window.__onGCastApiAvailable = function (isAvailable) {
+        window.__sagostundCastAvailable = Boolean(isAvailable);
+        window.dispatchEvent(
+          new CustomEvent("sagostund:cast-api", {
+            detail: { isAvailable: Boolean(isAvailable) }
+          })
+        );
+      };
+    </script>
+    <script
+      async
+      src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"
+    ></script>
     <script type="module" src="./assets/app.js"></script>
   </body>
 </html>
