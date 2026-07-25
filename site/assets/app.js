@@ -1,3 +1,9 @@
+import {
+  enforcePlaybackRate,
+  normalizePlaybackRate
+} from "./player-settings.js";
+import { createCastLoadRequest } from "./cast-queue.js";
+
 const $ = (selector) => document.querySelector(selector);
 
 const elements = {
@@ -53,7 +59,9 @@ const state = {
   captionTrack: null,
   captionTrackElement: null,
   captionsEnabled: localStorage.getItem("sagostund:captions") !== "off",
-  playbackRate: Number(localStorage.getItem("sagostund:speed")) || 1,
+  playbackRate: normalizePlaybackRate(
+    localStorage.getItem("sagostund:speed")
+  ),
   navigationHidden:
     localStorage.getItem("sagostund:navigation-hidden") === "true",
   started: false,
@@ -81,7 +89,9 @@ function resolveUrl(relativePath) {
 }
 
 async function fetchJson(relativePath) {
-  const response = await fetch(resolveUrl(relativePath));
+  const response = await fetch(resolveUrl(relativePath), {
+    cache: "no-store"
+  });
   if (!response.ok) {
     throw new Error(`Kunde inte läsa ${relativePath} (${response.status}).`);
   }
@@ -470,6 +480,13 @@ function playbackIsPaused() {
   return elements.narration.paused;
 }
 
+function applyLocalPlaybackRate() {
+  if (!state.story || isCasting()) {
+    return;
+  }
+  enforcePlaybackRate(elements.narration, state.playbackRate);
+}
+
 function updateProgress() {
   if (!state.story) {
     return;
@@ -617,8 +634,10 @@ async function loadChapter(index, options = {}) {
   setStageStatus("Laddar kapitlet…");
   updateChapterUi();
 
+  applyLocalPlaybackRate();
   elements.narration.src = resolveUrl(chapter.audio);
   elements.narration.load();
+  applyLocalPlaybackRate();
 
   const captionsPromise = loadCaptions(chapter, token);
 
@@ -630,8 +649,7 @@ async function loadChapter(index, options = {}) {
       return;
     }
 
-    elements.narration.defaultPlaybackRate = state.playbackRate;
-    elements.narration.playbackRate = state.playbackRate;
+    applyLocalPlaybackRate();
     if ("preservesPitch" in elements.narration) {
       elements.narration.preservesPitch = true;
     }
@@ -645,6 +663,7 @@ async function loadChapter(index, options = {}) {
 
     if (options.autoplay) {
       await elements.narration.play();
+      applyLocalPlaybackRate();
     }
   } catch (error) {
     if (token === state.loadingToken) {
@@ -984,20 +1003,26 @@ async function startCastPlayback(
       const item = new chrome.cast.media.QueueItem(
         castMediaForChapter(chapter, index)
       );
-      item.autoplay =
-        index === chapterIndex ? options.autoplay !== false : true;
+      item.autoplay = true;
       item.preloadTime = 20;
       if (state.captionsEnabled) {
         item.activeTrackIds = [1];
       }
       return item;
     });
-    const request = new chrome.cast.media.QueueLoadRequest(items);
-    request.startIndex = chapterIndex;
-    request.currentTime = Math.max(0, startTime);
-    request.repeatMode = chrome.cast.media.RepeatMode.OFF;
+    const request = createCastLoadRequest(chrome.cast.media, items, {
+      title: state.story.title,
+      description: state.story.description,
+      chapterIndex,
+      startTime,
+      autoplay: options.autoplay !== false,
+      captionsEnabled: state.captionsEnabled
+    });
 
-    await state.cast.session.loadMedia(request);
+    const castError = await state.cast.session.loadMedia(request);
+    if (castError) {
+      throw new Error(`Google Cast svarade med felkod ${castError}.`);
+    }
     state.cast.loaded = true;
     state.cast.chapterIndex = chapterIndex;
     state.cast.currentTime = Math.max(0, startTime);
@@ -1200,9 +1225,8 @@ function bindEvents() {
   });
 
   elements.speedSelect.addEventListener("change", () => {
-    state.playbackRate = Number(elements.speedSelect.value);
-    elements.narration.defaultPlaybackRate = state.playbackRate;
-    elements.narration.playbackRate = state.playbackRate;
+    state.playbackRate = normalizePlaybackRate(elements.speedSelect.value);
+    applyLocalPlaybackRate();
     localStorage.setItem("sagostund:speed", String(state.playbackRate));
   });
 
@@ -1220,6 +1244,11 @@ function bindEvents() {
     }
   });
 
+  elements.narration.addEventListener("loadedmetadata", applyLocalPlaybackRate);
+  elements.narration.addEventListener("canplay", applyLocalPlaybackRate);
+  elements.narration.addEventListener("play", applyLocalPlaybackRate);
+  elements.narration.addEventListener("playing", applyLocalPlaybackRate);
+  elements.narration.addEventListener("ratechange", applyLocalPlaybackRate);
   elements.narration.addEventListener("play", () => {
     state.started = true;
     setCurrentChapterImage();

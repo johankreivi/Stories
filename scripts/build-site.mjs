@@ -8,6 +8,7 @@ import {
   stat,
   writeFile
 } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -22,6 +23,54 @@ function assert(condition, message) {
   if (!condition) {
     throw new Error(message);
   }
+}
+
+function versionedUrl(url, content) {
+  const version = createHash("sha256")
+    .update(content)
+    .digest("hex")
+    .slice(0, 12);
+  return `${url}?v=${version}`;
+}
+
+async function versionSiteAssets() {
+  const htmlPath = path.join(outputRoot, "index.html");
+  const appPath = path.join(outputRoot, "assets", "app.js");
+  const stylesPath = path.join(outputRoot, "assets", "styles.css");
+  const playerSettingsPath = path.join(
+    outputRoot,
+    "assets",
+    "player-settings.js"
+  );
+  const castQueuePath = path.join(outputRoot, "assets", "cast-queue.js");
+  const [html, rawAppSource, stylesSource, playerSettings, castQueue] =
+    await Promise.all([
+      readFile(htmlPath, "utf8"),
+      readFile(appPath, "utf8"),
+      readFile(stylesPath, "utf8"),
+      readFile(playerSettingsPath, "utf8"),
+      readFile(castQueuePath, "utf8")
+    ]);
+  const appSource = rawAppSource
+    .replace(
+      '"./player-settings.js"',
+      `"${versionedUrl("./player-settings.js", playerSettings)}"`
+    )
+    .replace(
+      '"./cast-queue.js"',
+      `"${versionedUrl("./cast-queue.js", castQueue)}"`
+    );
+  await writeFile(appPath, appSource, "utf8");
+  const versionedHtml = html
+    .replace(
+      'href="./assets/styles.css"',
+      `href="${versionedUrl("./assets/styles.css", stylesSource)}"`
+    )
+    .replace(
+      'src="./assets/app.js"',
+      `src="${versionedUrl("./assets/app.js", appSource)}"`
+    );
+  await writeFile(htmlPath, versionedHtml, "utf8");
 }
 
 function titleFromSlug(slug) {
@@ -402,9 +451,18 @@ async function scanStory(storyDirent) {
       duration,
       transcript: paragraphs,
       image: imageForChapter.get(number).url,
-      audio: `./sagor/${slug}/ljud/${outputNumber}.mp3`,
-      captions: `./sagor/${slug}/kapitel/${outputNumber}.vtt`,
-      text: `./sagor/${slug}/kapitel/${outputNumber}.txt`,
+      audio: versionedUrl(
+        `./sagor/${slug}/ljud/${outputNumber}.mp3`,
+        audioBuffer
+      ),
+      captions: versionedUrl(
+        `./sagor/${slug}/kapitel/${outputNumber}.vtt`,
+        rawVtt
+      ),
+      text: versionedUrl(
+        `./sagor/${slug}/kapitel/${outputNumber}.txt`,
+        rawText
+      ),
       sources: { textSource, audioSource, captionsSource },
       outputs: {
         textName: `${outputNumber}.txt`,
@@ -500,6 +558,7 @@ async function main() {
     await rm(outputRoot, { recursive: true, force: true });
     await mkdir(outputRoot, { recursive: true });
     await cp(siteRoot, outputRoot, { recursive: true });
+    await versionSiteAssets();
     await mkdir(path.join(outputRoot, "data"), { recursive: true });
 
     for (const story of stories) {

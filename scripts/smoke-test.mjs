@@ -13,7 +13,11 @@ function assert(condition, message) {
 }
 
 function outputPathFromUrl(url) {
-  return path.join(outputRoot, url.replace(/^\.\//, "").split("/").join(path.sep));
+  const pathname = url.split(/[?#]/, 1)[0];
+  return path.join(
+    outputRoot,
+    pathname.replace(/^\.\//, "").split("/").join(path.sep)
+  );
 }
 
 async function main() {
@@ -22,8 +26,23 @@ async function main() {
     path.join(outputRoot, "assets", "app.js"),
     "utf8"
   );
-  assert(html.includes("./assets/app.js"), "index.html saknar app.js.");
-  assert(html.includes("./assets/styles.css"), "index.html saknar styles.css.");
+  assert(
+    html.includes("./assets/app.js?v="),
+    "index.html saknar versionsmärkt app.js."
+  );
+  assert(
+    html.includes("./assets/styles.css?v="),
+    "index.html saknar versionsmärkt styles.css."
+  );
+  assert(
+    appSource.includes('cache: "no-store"'),
+    "Bibliotek och sagomanifest måste hämtas utan gammal HTTP-cache."
+  );
+  assert(
+    appSource.includes("./player-settings.js?v=") &&
+      appSource.includes("./cast-queue.js?v="),
+    "Spelarens delmoduler måste vara versionsmärkta."
+  );
   assert(
     html.includes("cast_sender.js?loadCastFramework=1"),
     "index.html saknar Google Cast SDK."
@@ -41,11 +60,24 @@ async function main() {
     "elements.narration.load()"
   );
   const playbackRateIndex = loadChapterSource.lastIndexOf(
-    "elements.narration.playbackRate = state.playbackRate"
+    "applyLocalPlaybackRate()"
   );
   assert(
     mediaLoadIndex >= 0 && playbackRateIndex > mediaLoadIndex,
     "Uppspelningshastigheten måste återställas efter att kapitlets ljud har laddats."
+  );
+  for (const eventName of ["loadedmetadata", "canplay", "play", "playing"]) {
+    assert(
+      appSource.includes(
+        `elements.narration.addEventListener("${eventName}", applyLocalPlaybackRate)`
+      ),
+      `Spelaren måste skydda uppspelningshastigheten vid ${eventName}.`
+    );
+  }
+  assert(
+    appSource.includes("createCastLoadRequest(chrome.cast.media, items,") &&
+      !appSource.includes("new chrome.cast.media.QueueLoadRequest("),
+    "Chromecast måste använda den verifierade LoadRequest-kön."
   );
 
   const library = JSON.parse(
@@ -89,6 +121,13 @@ async function main() {
     presentationManifest.chapters[0].displayNumber === 0 &&
       presentationManifest.chapters.at(-1).displayNumber === 11,
     "Den stora presentationen ska visa kapitel 0–11."
+  );
+  assert(
+    presentationManifest.chapters.every(
+      (chapter) =>
+        chapter.audio.includes("?v=") && chapter.captions.includes("?v=")
+    ),
+    "Presentationens ljud och undertexter måste ha innehållsbaserade cacheversioner."
   );
   for (const chapter of presentationManifest.chapters) {
     const firstParagraph = chapter.transcript[0].replace(/[.!?]+$/, "");
