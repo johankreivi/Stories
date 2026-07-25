@@ -143,16 +143,6 @@ a:focus-visible {
   margin: 0 auto;
 }
 
-body.is-navigation-hidden .app-header,
-body.is-navigation-hidden .app-footer {
-  display: none;
-}
-
-body.is-navigation-hidden .app-main {
-  margin-top: 20px;
-  margin-bottom: 20px;
-}
-
 .player-shell {
   overflow: hidden;
   border: 1px solid rgba(16, 33, 63, 0.1);
@@ -172,6 +162,14 @@ body.is-navigation-hidden .app-main {
   display: grid;
   grid-template-rows: minmax(360px, 1fr) auto;
   background: var(--surface);
+}
+
+.player-shell.is-controls-hidden .control-panel {
+  display: none;
+}
+
+.player-shell.is-controls-hidden .player-primary {
+  grid-template-rows: minmax(360px, 1fr);
 }
 
 .visual-stage {
@@ -230,8 +228,15 @@ body.is-navigation-hidden .app-main {
   gap: 16px;
 }
 
+.visual-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .chapter-chip {
-  max-width: calc(100% - 64px);
+  max-width: calc(100% - 112px);
   overflow: hidden;
   padding: 8px 12px;
   border: 1px solid rgba(255, 255, 255, 0.24);
@@ -347,8 +352,7 @@ body.is-navigation-hidden .app-main {
   font-size: 0.98rem;
 }
 
-.caption-toggle,
-.navigation-toggle {
+.caption-toggle {
   min-height: 42px;
   flex: 0 0 auto;
   display: inline-flex;
@@ -372,20 +376,6 @@ body.is-navigation-hidden .app-main {
   background: var(--night);
   font-size: 0.65rem;
   letter-spacing: 0.04em;
-}
-
-.navigation-toggle {
-  color: var(--muted);
-}
-
-.navigation-toggle > span:first-child {
-  font-size: 1rem;
-  line-height: 1;
-}
-
-.navigation-toggle[aria-pressed="true"] {
-  color: var(--night);
-  background: #eef2f7;
 }
 
 .caption-toggle[aria-pressed="false"] {
@@ -539,33 +529,69 @@ body.is-navigation-hidden .app-main {
 .cast-control {
   display: flex;
   align-items: center;
-  gap: 5px;
-  color: var(--muted);
-  font-size: 0.72rem;
-  font-weight: 750;
 }
 
 .cast-button {
-  --connected-color: var(--blue);
-  --disconnected-color: var(--night);
-  width: 38px;
-  height: 38px;
+  min-height: 40px;
   display: none;
-  padding: 7px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
   border-radius: 11px;
+  color: var(--night);
   background: #eef2f7;
+  font-size: 0.72rem;
+  font-weight: 750;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .cast-button.is-ready {
-  display: block;
+  display: inline-flex;
+}
+
+.cast-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .cast-button.is-connected {
+  color: var(--blue);
   background: rgba(47, 114, 196, 0.13);
 }
 
-.cast-button:not(.is-ready) + .cast-label {
-  display: none;
+.cast-symbol {
+  position: relative;
+  width: 21px;
+  height: 16px;
+  overflow: hidden;
+  flex: 0 0 auto;
+  border: 2px solid currentColor;
+  border-radius: 3px;
+}
+
+.cast-symbol::before {
+  position: absolute;
+  bottom: -9px;
+  left: -9px;
+  width: 16px;
+  height: 16px;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  content: "";
+}
+
+.cast-symbol::after {
+  position: absolute;
+  bottom: 1px;
+  left: 1px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  content: "";
 }
 
 .speed-control select {
@@ -1004,10 +1030,6 @@ body.has-faux-fullscreen {
     margin-top: 6px;
   }
 
-  body.is-navigation-hidden .app-main {
-    margin: 0;
-  }
-
   .player-shell:fullscreen .story-heading,
   .player-shell.is-faux-fullscreen .story-heading {
     display: none;
@@ -1025,8 +1047,7 @@ body.has-faux-fullscreen {
 }
 
 @media (max-width: 440px) {
-  .caption-toggle,
-  .navigation-toggle {
+  .caption-toggle {
     flex: 1 1 auto;
     justify-content: center;
   }

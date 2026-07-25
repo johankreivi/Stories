@@ -14,7 +14,6 @@ const elements = {
   chapterChip: $("#chapterChip"),
   fullscreenButton: $("#fullscreenButton"),
   navigationButton: $("#navigationButton"),
-  navigationButtonLabel: $("#navigationButtonLabel"),
   captionRegion: $("#captionRegion"),
   captionText: $("#captionText"),
   stageStatus: $("#stageStatus"),
@@ -62,8 +61,8 @@ const state = {
   playbackRate: normalizePlaybackRate(
     localStorage.getItem("sagostund:speed")
   ),
-  navigationHidden:
-    localStorage.getItem("sagostund:navigation-hidden") === "true",
+  controlsHidden:
+    localStorage.getItem("sagostund:controls-hidden") === "true",
   started: false,
   loadingToken: 0,
   animationFrame: 0,
@@ -697,6 +696,7 @@ async function selectStory(slug) {
   state.story = nextStory;
   state.chapterIndex = 0;
   state.started = false;
+  setCastUi();
 
   elements.storySelect.value = state.story.slug;
   elements.storyTitle.textContent = state.story.title;
@@ -739,6 +739,7 @@ async function togglePlay() {
   if (elements.narration.paused) {
     try {
       await elements.narration.play();
+      applyLocalPlaybackRate();
     } catch (error) {
       setStageStatus("Tryck på spela igen för att starta ljudet.");
       console.warn(error);
@@ -821,6 +822,7 @@ function updatePlayButton(playing) {
 function runAnimationLoop() {
   cancelAnimationFrame(state.animationFrame);
   const tick = () => {
+    applyLocalPlaybackRate();
     updateProgress();
     renderCaption();
     if (!playbackIsPaused() && (isCasting() || !elements.narration.ended)) {
@@ -830,24 +832,21 @@ function runAnimationLoop() {
   state.animationFrame = requestAnimationFrame(tick);
 }
 
-function setNavigationHidden(hidden) {
-  state.navigationHidden = hidden;
-  document.body.classList.toggle("is-navigation-hidden", hidden);
-  localStorage.setItem("sagostund:navigation-hidden", String(hidden));
+function setControlsHidden(hidden) {
+  state.controlsHidden = hidden;
+  elements.playerShell.classList.toggle("is-controls-hidden", hidden);
+  localStorage.setItem("sagostund:controls-hidden", String(hidden));
   elements.navigationButton.setAttribute("aria-pressed", String(hidden));
   elements.navigationButton.setAttribute(
     "aria-label",
-    hidden ? "Visa sidans navigation" : "Dölj sidans navigation"
+    hidden ? "Visa uppspelningskontrollerna" : "Dölj uppspelningskontrollerna"
   );
   elements.navigationButton.title = hidden
-    ? "Visa navigation (N)"
-    : "Dölj navigation (N)";
-  elements.navigationButtonLabel.textContent = hidden
-    ? "Visa navigation"
-    : "Dölj navigation";
+    ? "Visa kontroller (N)"
+    : "Dölj kontroller (N)";
   elements.navigationButton.querySelector("span").textContent = hidden
-    ? "⌄"
-    : "⌃";
+    ? "⌃"
+    : "⌄";
 }
 
 function isCasting() {
@@ -861,10 +860,17 @@ function isCasting() {
 
 function setCastUi(message = "") {
   const connected = isCasting();
-  elements.castButton.classList.toggle("is-ready", state.cast.available);
+  elements.castButton.classList.toggle("is-ready", state.cast.initialized);
   elements.castButton.classList.toggle("is-connected", connected);
+  elements.castButton.disabled =
+    !state.cast.initialized || !state.story || state.cast.loading;
   elements.castLabel.textContent =
     message || (connected ? "Castar" : "Casta");
+  elements.castButton.title = connected
+    ? "Hantera Chromecast-anslutningen"
+    : state.cast.available
+      ? "Välj en Chromecast"
+      : "Sök efter Chromecast-enheter";
   elements.speedSelect.disabled = connected;
   elements.speedSelect.title = connected
     ? "Uppspelningshastighet kan ändras när ljudet spelas på den här enheten."
@@ -1063,8 +1069,10 @@ async function handleCastSessionState(event) {
     cast.framework.SessionState.SESSION_RESUMED
   ];
   if (startedStates.includes(sessionState)) {
-    attachRemotePlayer(event.session);
-    if (state.story) {
+    if (state.cast.session !== event.session || !state.cast.remotePlayer) {
+      attachRemotePlayer(event.session);
+    }
+    if (state.story && !state.cast.loaded && !state.cast.loading) {
       await startCastPlayback(state.chapterIndex, playbackCurrentTime(), {
         autoplay: !elements.narration.paused
       });
@@ -1077,6 +1085,45 @@ async function handleCastSessionState(event) {
     state.cast.session
   ) {
     await endCastPlayback();
+  }
+}
+
+function handleCastState(event) {
+  state.cast.available =
+    event.castState !== cast.framework.CastState.NO_DEVICES_AVAILABLE;
+  setCastUi();
+}
+
+async function requestCastSession() {
+  if (!state.cast.initialized || state.cast.loading) {
+    setStageStatus("Chromecast är inte tillgängligt ännu.");
+    return;
+  }
+
+  const context = cast.framework.CastContext.getInstance();
+  try {
+    const castError = await context.requestSession();
+    if (castError) {
+      throw new Error(`Google Cast svarade med felkod ${castError}.`);
+    }
+
+    const session = context.getCurrentSession();
+    if (session && !state.cast.session) {
+      attachRemotePlayer(session);
+      if (state.story && !state.cast.loaded && !state.cast.loading) {
+        await startCastPlayback(state.chapterIndex, playbackCurrentTime(), {
+          autoplay: !elements.narration.paused
+        });
+      }
+    }
+  } catch (error) {
+    const errorCode =
+      typeof error === "string" ? error : error?.code ?? error?.message;
+    if (errorCode === chrome.cast.ErrorCode.CANCEL) {
+      return;
+    }
+    setStageStatus("Det gick inte att öppna Chromecast-enheterna.");
+    console.warn("Chromecast-väljaren kunde inte öppnas.", error);
   }
 }
 
@@ -1098,7 +1145,12 @@ function initializeCast() {
     cast.framework.CastContextEventType.SESSION_STATE_CHANGED,
     handleCastSessionState
   );
-  state.cast.available = true;
+  context.addEventListener(
+    cast.framework.CastContextEventType.CAST_STATE_CHANGED,
+    handleCastState
+  );
+  state.cast.available =
+    context.getCastState() !== cast.framework.CastState.NO_DEVICES_AVAILABLE;
   state.cast.initialized = true;
   setCastUi();
 }
@@ -1234,8 +1286,9 @@ function bindEvents() {
     setCaptionsEnabled(!state.captionsEnabled);
   });
   elements.navigationButton.addEventListener("click", () => {
-    setNavigationHidden(!state.navigationHidden);
+    setControlsHidden(!state.controlsHidden);
   });
+  elements.castButton.addEventListener("click", requestCastSession);
   elements.fullscreenButton.addEventListener("click", toggleFullscreen);
   document.addEventListener("fullscreenchange", updateFullscreenButton);
   window.addEventListener("sagostund:cast-api", (event) => {
@@ -1245,6 +1298,7 @@ function bindEvents() {
   });
 
   elements.narration.addEventListener("loadedmetadata", applyLocalPlaybackRate);
+  elements.narration.addEventListener("loadeddata", applyLocalPlaybackRate);
   elements.narration.addEventListener("canplay", applyLocalPlaybackRate);
   elements.narration.addEventListener("play", applyLocalPlaybackRate);
   elements.narration.addEventListener("playing", applyLocalPlaybackRate);
@@ -1262,6 +1316,7 @@ function bindEvents() {
     updateProgress();
   });
   elements.narration.addEventListener("timeupdate", () => {
+    applyLocalPlaybackRate();
     updateProgress();
     renderCaption();
   });
@@ -1304,7 +1359,7 @@ function bindEvents() {
     } else if (event.key.toLowerCase() === "f") {
       await toggleFullscreen();
     } else if (event.key.toLowerCase() === "n") {
-      setNavigationHidden(!state.navigationHidden);
+      setControlsHidden(!state.controlsHidden);
     } else if (event.key === "Escape" && fauxFullscreenEnabled()) {
       exitFauxFullscreen();
     }
@@ -1319,7 +1374,7 @@ async function boot() {
   try {
     bindEvents();
     setCaptionsEnabled(state.captionsEnabled);
-    setNavigationHidden(state.navigationHidden);
+    setControlsHidden(state.controlsHidden);
     elements.speedSelect.value = String(state.playbackRate);
     setCastUi();
     if (window.__sagostundCastAvailable) {

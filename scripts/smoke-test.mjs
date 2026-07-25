@@ -26,6 +26,10 @@ async function main() {
     path.join(outputRoot, "assets", "app.js"),
     "utf8"
   );
+  const stylesSource = await readFile(
+    path.join(outputRoot, "assets", "styles.css"),
+    "utf8"
+  );
   assert(
     html.includes("./assets/app.js?v="),
     "index.html saknar versionsmärkt app.js."
@@ -47,7 +51,25 @@ async function main() {
     html.includes("cast_sender.js?loadCastFramework=1"),
     "index.html saknar Google Cast SDK."
   );
-  assert(html.includes('id="navigationButton"'), "Knappen för dold navigation saknas.");
+  assert(
+    /<button[\s\S]*?id="castButton"/.test(html) &&
+      !html.includes("<google-cast-launcher"),
+    "Cast-kontrollen måste vara en vanlig knapp vars hela yta går att trycka på."
+  );
+  assert(
+    appSource.includes("async function requestCastSession") &&
+      appSource.includes("context.requestSession()"),
+    "Cast-knappen måste öppna Google Casts enhetsväljare."
+  );
+  assert(html.includes('id="navigationButton"'), "Knappen för dolda kontroller saknas.");
+  assert(
+    appSource.includes("function setControlsHidden") &&
+      stylesSource.includes(
+        ".player-shell.is-controls-hidden .control-panel"
+      ) &&
+      !stylesSource.includes("body.is-navigation-hidden .app-header"),
+    "Döljknappen ska dölja uppspelningskontrollerna, inte sidans navigation."
+  );
   assert(html.includes('id="unlockDialog"'), "Dialogen för låsta böcker saknas.");
 
   const loadChapterStart = appSource.indexOf("async function loadChapter");
@@ -74,6 +96,17 @@ async function main() {
       `Spelaren måste skydda uppspelningshastigheten vid ${eventName}.`
     );
   }
+  const animationLoopStart = appSource.indexOf("function runAnimationLoop");
+  const animationLoopEnd = appSource.indexOf(
+    "\nfunction setControlsHidden",
+    animationLoopStart
+  );
+  assert(
+    appSource
+      .slice(animationLoopStart, animationLoopEnd)
+      .includes("applyLocalPlaybackRate()"),
+    "Uppspelningsloopen måste återställa vald hastighet om webbläsaren nollställer den."
+  );
   assert(
     appSource.includes("createCastLoadRequest(chrome.cast.media, items,") &&
       !appSource.includes("new chrome.cast.media.QueueLoadRequest("),

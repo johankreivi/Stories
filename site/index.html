@@ -47,15 +47,27 @@
 
               <div class="visual-topline">
                 <span class="chapter-chip" id="chapterChip">Förbereder saga</span>
-                <button
-                  class="icon-button fullscreen-button"
-                  id="fullscreenButton"
-                  type="button"
-                  aria-label="Visa spelaren i helskärm"
-                  title="Helskärm (F)"
-                >
-                  <span aria-hidden="true">⛶</span>
-                </button>
+                <div class="visual-actions">
+                  <button
+                    class="icon-button controls-visibility-button"
+                    id="navigationButton"
+                    type="button"
+                    aria-pressed="false"
+                    aria-label="Dölj uppspelningskontrollerna"
+                    title="Dölj kontroller (N)"
+                  >
+                    <span aria-hidden="true">⌄</span>
+                  </button>
+                  <button
+                    class="icon-button fullscreen-button"
+                    id="fullscreenButton"
+                    type="button"
+                    aria-label="Visa spelaren i helskärm"
+                    title="Helskärm (F)"
+                  >
+                    <span aria-hidden="true">⛶</span>
+                  </button>
+                </div>
               </div>
 
               <div
@@ -90,16 +102,6 @@
                   >
                     <span aria-hidden="true">CC</span>
                     <span id="captionButtonLabel">Undertext på</span>
-                  </button>
-                  <button
-                    class="navigation-toggle"
-                    id="navigationButton"
-                    type="button"
-                    aria-pressed="false"
-                    title="Dölj sidans navigation (N)"
-                  >
-                    <span aria-hidden="true">⌃</span>
-                    <span id="navigationButtonLabel">Dölj navigation</span>
                   </button>
                 </div>
               </div>
@@ -155,13 +157,17 @@
 
                 <div class="player-options">
                   <div class="cast-control">
-                    <google-cast-launcher
+                    <button
                       class="cast-button"
                       id="castButton"
+                      type="button"
                       aria-label="Casta ljudboken"
                       title="Casta till Chromecast"
-                    ></google-cast-launcher>
-                    <span class="cast-label" id="castLabel">Casta</span>
+                      disabled
+                    >
+                      <span class="cast-symbol" aria-hidden="true"></span>
+                      <span class="cast-label" id="castLabel">Casta</span>
+                    </button>
                   </div>
                   <label class="speed-control">
                     <span>Hastighet</span>
@@ -204,7 +210,7 @@
 
     <footer class="app-footer">
       <p>En lugn stund för stora och små.</p>
-      <p>Tangentbord: mellanslag spelar, piltangenter spolar, C visar text, F ger helskärm och N döljer navigationen.</p>
+      <p>Tangentbord: mellanslag spelar, piltangenter spolar, C visar text, F ger helskärm och N döljer kontrollerna.</p>
     </footer>
 
     <dialog class="unlock-dialog" id="unlockDialog" aria-labelledby="unlockTitle">
