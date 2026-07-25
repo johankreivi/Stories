@@ -4,6 +4,20 @@
   "language": "sv-SE",
   "narrator": "Mattias",
   "chapterNumberStart": 0,
+  "chapterTitles": {
+    "01-prolog": "Prolog",
+    "02-domarduon": "Domarduon – Mamma och Pappa",
+    "03-liah": "Liah",
+    "04-moster": "Moster",
+    "05-elliot": "Elliot",
+    "06-goran": "Göran",
+    "07-julius": "Julius",
+    "08-nicke": "Nicke",
+    "09-juni": "Juni",
+    "10-mormor": "Mormor",
+    "11-maskoten-billy": "Maskoten Billy",
+    "12-epilog": "Epilog"
+  },
   "access": {
     "type": "password",
     "algorithm": "PBKDF2-SHA-256",

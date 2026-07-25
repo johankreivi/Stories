@@ -385,12 +385,20 @@ async function scanStory(storyDirent) {
 
     const paragraphs = paragraphsFromText(rawText);
     assert(paragraphs.length > 0, `${slug}/${textFile.name}: kapitlet är tomt.`);
+    const metadataTitle = metadata.chapterTitles?.[base];
+    assert(
+      metadataTitle === undefined ||
+        (typeof metadataTitle === "string" && metadataTitle.trim().length > 0),
+      `${slug}/${textFile.name}: kapitelrubriken i saga.json är ogiltig.`
+    );
 
     const outputNumber = String(number).padStart(2, "0");
     chapters.push({
       number,
       id: base,
-      title: firstNonEmptyLine(rawText).replace(/\s+$/, ""),
+      title:
+        metadataTitle?.trim() ||
+        firstNonEmptyLine(rawText).replace(/\s+$/, ""),
       duration,
       transcript: paragraphs,
       image: imageForChapter.get(number).url,

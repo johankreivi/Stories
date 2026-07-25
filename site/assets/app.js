@@ -618,10 +618,6 @@ async function loadChapter(index, options = {}) {
   updateChapterUi();
 
   elements.narration.src = resolveUrl(chapter.audio);
-  elements.narration.playbackRate = state.playbackRate;
-  if ("preservesPitch" in elements.narration) {
-    elements.narration.preservesPitch = true;
-  }
   elements.narration.load();
 
   const captionsPromise = loadCaptions(chapter, token);
@@ -634,6 +630,11 @@ async function loadChapter(index, options = {}) {
       return;
     }
 
+    elements.narration.defaultPlaybackRate = state.playbackRate;
+    elements.narration.playbackRate = state.playbackRate;
+    if ("preservesPitch" in elements.narration) {
+      elements.narration.preservesPitch = true;
+    }
     elements.narration.currentTime = Math.min(
       startTime,
       Math.max(0, chapter.duration - 0.05)
@@ -1200,6 +1201,7 @@ function bindEvents() {
 
   elements.speedSelect.addEventListener("change", () => {
     state.playbackRate = Number(elements.speedSelect.value);
+    elements.narration.defaultPlaybackRate = state.playbackRate;
     elements.narration.playbackRate = state.playbackRate;
     localStorage.setItem("sagostund:speed", String(state.playbackRate));
   });

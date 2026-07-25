@@ -65,6 +65,18 @@ Källfilerna börjar alltid på `01`, men en bok kan visa andra kapitelnummer:
 }
 ```
 
+Om kapitelrubriken ska visas men inte läsas upp läggs den i `chapterTitles`,
+med kapitlets basnamn som nyckel. Då kan TXT-filen börja direkt med
+berättartexten:
+
+```json
+{
+  "chapterTitles": {
+    "01-inledning": "Inledning"
+  }
+}
+```
+
 Ett lösenordslås anges med en saltad PBKDF2-SHA-256-hash i `saga.json`. Se
 `Stories/den-stora-presentationen/saga.json` som exempel. Lösenordet sparas
 aldrig i klartext och en lyckad upplåsning gäller bara i den aktuella

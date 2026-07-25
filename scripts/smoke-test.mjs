@@ -18,6 +18,10 @@ function outputPathFromUrl(url) {
 
 async function main() {
   const html = await readFile(path.join(outputRoot, "index.html"), "utf8");
+  const appSource = await readFile(
+    path.join(outputRoot, "assets", "app.js"),
+    "utf8"
+  );
   assert(html.includes("./assets/app.js"), "index.html saknar app.js.");
   assert(html.includes("./assets/styles.css"), "index.html saknar styles.css.");
   assert(
@@ -26,6 +30,23 @@ async function main() {
   );
   assert(html.includes('id="navigationButton"'), "Knappen för dold navigation saknas.");
   assert(html.includes('id="unlockDialog"'), "Dialogen för låsta böcker saknas.");
+
+  const loadChapterStart = appSource.indexOf("async function loadChapter");
+  const loadChapterEnd = appSource.indexOf(
+    "\nasync function selectStory",
+    loadChapterStart
+  );
+  const loadChapterSource = appSource.slice(loadChapterStart, loadChapterEnd);
+  const mediaLoadIndex = loadChapterSource.indexOf(
+    "elements.narration.load()"
+  );
+  const playbackRateIndex = loadChapterSource.lastIndexOf(
+    "elements.narration.playbackRate = state.playbackRate"
+  );
+  assert(
+    mediaLoadIndex >= 0 && playbackRateIndex > mediaLoadIndex,
+    "Uppspelningshastigheten måste återställas efter att kapitlets ljud har laddats."
+  );
 
   const library = JSON.parse(
     await readFile(path.join(outputRoot, "data", "library.json"), "utf8")
@@ -69,6 +90,14 @@ async function main() {
       presentationManifest.chapters.at(-1).displayNumber === 11,
     "Den stora presentationen ska visa kapitel 0–11."
   );
+  for (const chapter of presentationManifest.chapters) {
+    const firstParagraph = chapter.transcript[0].replace(/[.!?]+$/, "");
+    const chapterTitle = chapter.title.replace(/[.!?]+$/, "");
+    assert(
+      firstParagraph !== chapterTitle,
+      `${chapter.id}: kapitelrubriken får inte ingå i den upplästa texten.`
+    );
+  }
   const accessConfig = presentationManifest.access;
   const derivedPassword = pbkdf2Sync(
     "107",
